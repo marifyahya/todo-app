@@ -3,9 +3,14 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/marifyahya/todo-app/backend/database"
 )
 
 func main() {
+	// Initialize Database
+	database.InitDB()
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Hello from Todos Backend!")
 	})
