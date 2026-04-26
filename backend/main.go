@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/marifyahya/todo-app/backend/database"
 	"github.com/marifyahya/todo-app/backend/handlers"
+	"github.com/marifyahya/todo-app/backend/middleware"
 )
 
 func main() {
@@ -28,6 +29,12 @@ func main() {
 		{
 			auth.POST("/register", handlers.Register)
 			auth.POST("/login", handlers.Login)
+		}
+
+		tasks := api.Group("/tasks")
+		tasks.Use(middleware.AuthMiddleware())
+		{
+			tasks.GET("", handlers.GetTasks)
 		}
 	}
 
