@@ -27,6 +27,7 @@ func main() {
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", handlers.Register)
+			auth.POST("/login", handlers.Login)
 		}
 	}
 

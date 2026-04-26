@@ -30,7 +30,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "User registered successfully"
+                  data:
+                    $ref: "#/components/schemas/UserResponse"
         "400":
           description: Invalid input or user already exists
           content:
@@ -63,7 +72,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/LoginResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Login successful"
+                  data:
+                    $ref: "#/components/schemas/LoginResponse"
         "401":
           description: Invalid credentials
           content:
@@ -91,20 +109,31 @@ paths:
           schema:
             type: string
             enum: [ pending, completed ]
+            example: "pending"
         - name: sort
           in: query
           schema:
             type: string
             enum: [ created_at_asc, created_at_desc, due_date_asc, due_date_desc ]
+            example: "created_at_desc"
       responses:
         "200":
           description: List of tasks
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/TaskResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Tasks retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TaskResponse"
         "401":
           description: Unauthorized
           content:
@@ -130,7 +159,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TaskResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Task created successfully"
+                  data:
+                    $ref: "#/components/schemas/TaskResponse"
         "400":
           description: Invalid input
           content:
@@ -151,6 +189,7 @@ paths:
         required: true
         schema:
           type: integer
+          example: 1
     put:
       summary: Update a task
       operationId: updateTask
@@ -170,7 +209,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TaskResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Task updated successfully"
+                  data:
+                    $ref: "#/components/schemas/TaskResponse"
         "400":
           description: Invalid input
           content:
@@ -197,8 +245,19 @@ paths:
       security:
         - BearerAuth: []
       responses:
-        "204":
+        "200":
           description: Task deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Task deleted successfully"
         "401":
           description: Unauthorized
           content:
@@ -226,9 +285,18 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/CategoryResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Categories retrieved successfully"
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CategoryResponse"
         "401":
           description: Unauthorized
           content:
@@ -254,7 +322,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CategoryResponse"
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  message:
+                    type: string
+                    example: "Category created successfully"
+                  data:
+                    $ref: "#/components/schemas/CategoryResponse"
         "400":
           description: Invalid input
           content:
@@ -278,6 +355,9 @@ components:
     ErrorResponse:
       type: object
       properties:
+        status:
+          type: string
+          example: "error"
         message:
           type: string
           example: "Unauthorized access"
@@ -285,6 +365,9 @@ components:
     ValidationErrorResponse:
       type: object
       properties:
+        status:
+          type: string
+          example: "error"
         message:
           type: string
           example: "Validation failed"
@@ -306,11 +389,14 @@ components:
         email:
           type: string
           format: email
+          example: "user@example.com"
         password:
           type: string
           minLength: 6
+          example: "secret123"
         name:
           type: string
+          example: "John Doe"
 
     LoginRequest:
       type: object
@@ -321,27 +407,34 @@ components:
         email:
           type: string
           format: email
+          example: "user@example.com"
         password:
           type: string
+          example: "secret123"
 
     UserResponse:
       type: object
       properties:
         id:
           type: integer
+          example: 1
         email:
           type: string
+          example: "user@example.com"
         name:
           type: string
+          example: "John Doe"
         created_at:
           type: string
           format: date-time
+          example: "2024-03-26T10:00:00Z"
 
     LoginResponse:
       type: object
       properties:
         token:
           type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         user:
           $ref: "#/components/schemas/UserResponse"
 
@@ -352,36 +445,48 @@ components:
       properties:
         title:
           type: string
+          example: "Complete project documentation"
         description:
           type: string
+          example: "Finish the README and API docs by EOD"
         status:
           type: string
           enum: [ pending, completed ]
+          example: "pending"
         due_date:
           type: string
           format: date-time
+          example: "2024-04-01T17:00:00Z"
         category_id:
           type: integer
+          example: 1
 
     TaskResponse:
       type: object
       properties:
         id:
           type: integer
+          example: 1
         title:
           type: string
+          example: "Complete project documentation"
         description:
           type: string
+          example: "Finish the README and API docs by EOD"
         status:
           type: string
+          example: "pending"
         due_date:
           type: string
           format: date-time
+          example: "2024-04-01T17:00:00Z"
         category_id:
           type: integer
+          example: 1
         created_at:
           type: string
           format: date-time
+          example: "2024-03-26T09:00:00Z"
 
     CategoryRequest:
       type: object
@@ -390,11 +495,14 @@ components:
       properties:
         name:
           type: string
+          example: "Work"
 
     CategoryResponse:
       type: object
       properties:
         id:
           type: integer
+          example: 1
         name:
           type: string
+          example: "Work"
