@@ -16,6 +16,12 @@ func main() {
 	r := gin.Default()
 
 	// Routes
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Welcome to API Todo Application",
+		})
+	})
+
 	api := r.Group("/api")
 	{
 		auth := api.Group("/auth")

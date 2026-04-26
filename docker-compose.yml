@@ -14,8 +14,6 @@ services:
       resources:
         limits:
           memory: 512M
-        reservations:
-          memory: 256M
 
   backend:
     build: ./backend
@@ -34,8 +32,6 @@ services:
       resources:
         limits:
           memory: 256M
-        reservations:
-          memory: 128M
 
   frontend:
     build: ./frontend
@@ -46,8 +42,6 @@ services:
       resources:
         limits:
           memory: 512M
-        reservations:
-          memory: 256M
 
 volumes:
   postgres_data:
