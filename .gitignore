@@ -19,3 +19,7 @@ bin/
 
 # Docker
 .docker-data/
+
+# Temporary files
+tmp/
+*.log
