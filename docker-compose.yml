@@ -16,10 +16,14 @@ services:
           memory: 512M
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
     container_name: todos-backend
     ports:
       - "${BACKEND_PORT}:8080"
+    volumes:
+      - ./backend:/app
     depends_on:
       - db
     environment:
@@ -31,7 +35,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 2G
 
   frontend:
     build: ./frontend

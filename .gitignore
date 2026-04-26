@@ -22,4 +22,5 @@ bin/
 
 # Temporary files
 tmp/
+backend/tmp/
 *.log
