@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/marifyahya/todo-app/backend/database"
 	"github.com/marifyahya/todo-app/backend/handlers"
 	"github.com/marifyahya/todo-app/backend/middleware"
+	"github.com/marifyahya/todo-app/backend/utils"
 )
 
 func main() {
@@ -33,6 +35,11 @@ func main() {
 		c.JSON(200, gin.H{
 			"message": "Welcome to API Todo Application",
 		})
+	})
+
+	// 404 Custom Response
+	r.NoRoute(func(c *gin.Context) {
+		utils.ErrorResponse(c, http.StatusNotFound, "Route not found")
 	})
 
 	api := r.Group("/api")
