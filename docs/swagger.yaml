@@ -141,6 +141,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TaskResponse"
+        "401":
+          description: Unauthorized
         "404":
           description: Task not found
     delete:
@@ -153,6 +155,8 @@ paths:
       responses:
         "204":
           description: Task deleted
+        "401":
+          description: Unauthorized
         "404":
           description: Task not found
 
@@ -173,6 +177,8 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/CategoryResponse"
+        "401":
+          description: Unauthorized
     post:
       summary: Create a new category
       operationId: createCategory
@@ -193,6 +199,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CategoryResponse"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
 
 components:
   securitySchemes:

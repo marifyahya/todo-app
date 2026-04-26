@@ -1,22 +1,31 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
+	"log"
 
+	"github.com/gin-gonic/gin"
 	"github.com/marifyahya/todo-app/backend/database"
+	"github.com/marifyahya/todo-app/backend/handlers"
 )
 
 func main() {
 	// Initialize Database
 	database.InitDB()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "Hello from Todos Backend!")
-	})
+	// Initialize Gin Router
+	r := gin.Default()
 
-	fmt.Println("Server starting on port 8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		panic(err)
+	// Routes
+	api := r.Group("/api")
+	{
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", handlers.Register)
+		}
+	}
+
+	log.Println("Server starting on port 8080...")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
