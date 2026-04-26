@@ -1,0 +1,21 @@
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# Dependencies
+node_modules/
+vendor/
+
+# Build
+dist/
+bin/
+
+# Docker
+.docker-data/
