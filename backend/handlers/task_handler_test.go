@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -58,11 +59,11 @@ func TestGetTasks(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var response map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &response)
 		assert.Equal(t, "success", response["status"])
-		
+
 		data := response["data"].([]interface{})
 		assert.Equal(t, 2, len(data)) // Should only get 2 tasks for this user
 	})
@@ -78,7 +79,7 @@ func TestGetTasks(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		
+
 		var response map[string]interface{}
 		json.Unmarshal(w.Body.Bytes(), &response)
 		data := response["data"].([]interface{})
@@ -96,5 +97,59 @@ func TestGetTasks(t *testing.T) {
 		r.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	})
+}
+
+func TestCreateTask(t *testing.T) {
+	database.SetupTestDB()
+	gin.SetMode(gin.TestMode)
+
+	user := models.User{Email: "create@example.com", Name: "Create User"}
+	database.DB.Create(&user)
+	token := generateTestToken(user.ID)
+
+	t.Run("successful create task", func(t *testing.T) {
+		r := gin.Default()
+		r.POST("/tasks", middleware.AuthMiddleware(), CreateTask)
+
+		reqBody := map[string]string{
+			"title":       "New Task",
+			"description": "Task Description",
+			"priority":    "high",
+		}
+		body, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("POST", "/tasks", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		data := response["data"].(map[string]interface{})
+		assert.Equal(t, "New Task", data["title"])
+		assert.Equal(t, "high", data["priority"])
+		assert.Equal(t, "pending", data["status"])
+	})
+
+	t.Run("missing title", func(t *testing.T) {
+		r := gin.Default()
+		r.POST("/tasks", middleware.AuthMiddleware(), CreateTask)
+
+		reqBody := map[string]string{
+			"description": "Task Description",
+		}
+		body, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("POST", "/tasks", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }

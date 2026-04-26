@@ -1,7 +1,9 @@
 package main
 
 import (
+	"flag"
 	"log"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/marifyahya/todo-app/backend/database"
@@ -10,8 +12,18 @@ import (
 )
 
 func main() {
-	// Initialize Database
-	database.InitDB()
+	// Define migration flag
+	migrateFlag := flag.String("migrate", "", "Run migrations: 'up' or 'down'")
+	flag.Parse()
+
+	// If migrate flag is provided, run migration and exit
+	if *migrateFlag != "" {
+		database.RunMigrations(*migrateFlag)
+		os.Exit(0)
+	}
+
+	// Normal startup: Initialize Database and run 'up' migration by default
+	database.InitDB("up")
 
 	// Initialize Gin Router
 	r := gin.Default()
@@ -35,6 +47,7 @@ func main() {
 		tasks.Use(middleware.AuthMiddleware())
 		{
 			tasks.GET("", handlers.GetTasks)
+			tasks.POST("", handlers.CreateTask)
 		}
 	}
 
