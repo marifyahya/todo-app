@@ -14,7 +14,7 @@ const editForm = ref({
   title: "",
   description: "",
   priority: "",
-  due_date: "",
+  due_date: null,
 });
 
 const showDeleteModal = ref(false);
@@ -47,9 +47,7 @@ watch(selectedTask, (newVal) => {
       title: newVal.title,
       description: newVal.description || "",
       priority: newVal.priority || "",
-      due_date: newVal.due_date
-        ? new Date(newVal.due_date).toISOString().split("T")[0]
-        : "",
+      due_date: newVal.due_date ? new Date(newVal.due_date) : null,
     };
   }
 });
@@ -660,31 +658,37 @@ const userEmail = computed(() => authStore.user?.email || "user@example.com");
                 class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1"
                 >Due Date</label
               >
-              <div class="relative group">
-                <div
-                  class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              <VDatePicker v-model="editForm.due_date" mode="date" :popover="{ visibility: 'click' }">
+                <template #default="{ inputValue, inputEvents }">
+                  <div class="relative group">
+                    <div
+                      class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </div>
+                    <input
+                      :value="inputValue"
+                      v-on="inputEvents"
+                      readonly
+                      placeholder="Select a date"
+                      class="w-full bg-white border border-gray-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold text-black focus:border-black focus:ring-0 transition-all shadow-sm cursor-pointer"
                     />
-                  </svg>
-                </div>
-                <input
-                  v-model="editForm.due_date"
-                  type="date"
-                  class="w-full bg-white border border-gray-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold text-black focus:border-black focus:ring-0 transition-all shadow-sm cursor-pointer"
-                />
-              </div>
+                  </div>
+                </template>
+              </VDatePicker>
             </div>
           </div>
         </div>
