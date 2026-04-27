@@ -18,6 +18,14 @@ type CreateTaskRequest struct {
 	DueDate     *time.Time `json:"due_date"`
 }
 
+type UpdateTaskRequest struct {
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	Priority    string     `json:"priority"`
+	DueDate     *time.Time `json:"due_date"`
+}
+
 func GetTasks(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
@@ -85,4 +93,57 @@ func CreateTask(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, http.StatusCreated, "Task created successfully", task)
+}
+
+func UpdateTask(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	id := c.Param("id")
+	var task models.Task
+
+	// Find task and check ownership
+	if err := database.DB.First(&task, id).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "Task not found")
+		return
+	}
+
+	if task.UserID != userID.(uint) {
+		utils.ErrorResponse(c, http.StatusForbidden, "You do not have permission to update this task")
+		return
+	}
+
+	var req UpdateTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ValidationErrorResponse(c, "Validation failed", gin.H{"error": err.Error()})
+		return
+	}
+
+	// Update fields
+	updates := make(map[string]interface{})
+	if req.Title != "" {
+		updates["title"] = req.Title
+	}
+	if req.Description != "" {
+		updates["description"] = req.Description
+	}
+	if req.Status != "" {
+		updates["status"] = req.Status
+	}
+	if req.Priority != "" {
+		updates["priority"] = req.Priority
+	}
+	if req.DueDate != nil {
+		updates["due_date"] = req.DueDate
+	}
+
+	if err := database.DB.Model(&task).Updates(updates).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to update task")
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, "Task updated successfully", task)
 }

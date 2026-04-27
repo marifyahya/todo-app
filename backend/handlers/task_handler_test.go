@@ -153,3 +153,80 @@ func TestCreateTask(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
 }
+
+func TestUpdateTask(t *testing.T) {
+	database.SetupTestDB()
+	gin.SetMode(gin.TestMode)
+
+	user1 := models.User{Email: "user1@example.com", Name: "User 1"}
+	database.DB.Create(&user1)
+	token1 := generateTestToken(user1.ID)
+
+	user2 := models.User{Email: "user2@example.com", Name: "User 2"}
+	database.DB.Create(&user2)
+	token2 := generateTestToken(user2.ID)
+
+	task := models.Task{Title: "Task to update", UserID: user1.ID, Status: "pending"}
+	database.DB.Create(&task)
+
+	t.Run("successful update", func(t *testing.T) {
+		r := gin.Default()
+		r.PUT("/tasks/:id", middleware.AuthMiddleware(), UpdateTask)
+
+		reqBody := map[string]string{
+			"status": "completed",
+			"title":  "Updated Title",
+		}
+		body, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("PUT", "/tasks/1", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+token1)
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		json.Unmarshal(w.Body.Bytes(), &response)
+		data := response["data"].(map[string]interface{})
+		assert.Equal(t, "completed", data["status"])
+		assert.Equal(t, "Updated Title", data["title"])
+	})
+
+	t.Run("forbidden update (other user)", func(t *testing.T) {
+		r := gin.Default()
+		r.PUT("/tasks/:id", middleware.AuthMiddleware(), UpdateTask)
+
+		reqBody := map[string]string{
+			"status": "completed",
+		}
+		body, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("PUT", "/tasks/1", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+token2)
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		r := gin.Default()
+		r.PUT("/tasks/:id", middleware.AuthMiddleware(), UpdateTask)
+
+		reqBody := map[string]string{
+			"status": "completed",
+		}
+		body, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest("PUT", "/tasks/999", bytes.NewBuffer(body))
+		req.Header.Set("Authorization", "Bearer "+token1)
+		req.Header.Set("Content-Type", "application/json")
+
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
