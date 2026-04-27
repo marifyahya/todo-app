@@ -1,363 +1,154 @@
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { useTaskStore } from "../stores/task";
 
 const router = useRouter();
 const authStore = useAuthStore();
+const taskStore = useTaskStore();
 
-const tasks = ref([
-  {
-    id: 1,
-    title: "Research content ideas",
-    status: "pending",
-    date: "",
-    tags: [],
-    subtasks: 0,
-  },
-  {
-    id: 2,
-    title: "Create a database of guest authors",
-    status: "pending",
-    date: "",
-    tags: [],
-    subtasks: 0,
-  },
-  {
-    id: 3,
-    title: "Renew driver's license",
-    status: "pending",
-    date: "22-03-22",
-    tags: ["Personal"],
-    subtasks: 1,
-  },
-  {
-    id: 4,
-    title: "Consult accountant",
-    status: "pending",
-    date: "",
-    tags: ["List 1"],
-    subtasks: 3,
-  },
-  {
-    id: 5,
-    title: "Print business card",
-    status: "pending",
-    date: "",
-    tags: [],
-    subtasks: 0,
-  },
-]);
+const newTaskTitle = ref("");
+const selectedTask = ref(null);
+const editForm = ref({
+  title: "",
+  description: "",
+  priority: "",
+  due_date: "",
+});
+
+const showDeleteModal = ref(false);
+const taskToDelete = ref(null);
+const isSidebarOpen = ref(false);
+const activeFilter = ref({ type: "all", value: "" });
+
+onMounted(() => {
+  taskStore.fetchTasks();
+});
+
+// Watch for selectedTask changes to populate editForm
+watch(selectedTask, (newVal) => {
+  if (newVal) {
+    editForm.value = {
+      title: newVal.title,
+      description: newVal.description || "",
+      priority: newVal.priority || "",
+      due_date: newVal.due_date
+        ? new Date(newVal.due_date).toISOString().split("T")[0]
+        : "",
+    };
+  }
+});
 
 const handleLogout = () => {
   authStore.logout();
   router.push("/login");
 };
+
+const handleAddTask = async () => {
+  if (!newTaskTitle.value.trim()) return;
+  try {
+    await taskStore.createTask(newTaskTitle.value);
+    newTaskTitle.value = "";
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const handleUpdateTaskDetail = async () => {
+  if (!selectedTask.value) return;
+  try {
+    await taskStore.updateTask(selectedTask.value.id, {
+      ...editForm.value,
+      priority: editForm.value.priority || null,
+      due_date: editForm.value.due_date
+        ? new Date(editForm.value.due_date)
+        : null,
+    });
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const handleToggle = async (task) => {
+  try {
+    await taskStore.toggleStatus(task);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+const setFilter = (type, value) => {
+  activeFilter.value = { type, value };
+  const params = {};
+  if (type !== "all") {
+    params[type] = value;
+  }
+  taskStore.fetchTasks(params);
+  isSidebarOpen.value = false;
+};
+
+const confirmDelete = (id) => {
+  taskToDelete.value = id;
+  showDeleteModal.value = true;
+};
+
+const handleDelete = async () => {
+  if (taskToDelete.value) {
+    try {
+      await taskStore.deleteTask(taskToDelete.value);
+      if (selectedTask.value?.id === taskToDelete.value)
+        selectedTask.value = null;
+      showDeleteModal.value = false;
+      taskToDelete.value = null;
+    } catch (err) {
+      console.error(err);
+    }
+  }
+};
+
+const getPriorityClass = (priority) => {
+  if (!priority) return "bg-gray-50 text-gray-400 border border-gray-100";
+  switch (priority) {
+    case "high":
+      return "bg-red-50 text-red-600 border border-red-100";
+    case "medium":
+      return "bg-blue-50 text-blue-600 border border-blue-100";
+    case "low":
+      return "bg-gray-50 text-gray-600 border border-gray-100";
+    default:
+      return "bg-gray-50 text-gray-600";
+  }
+};
+
+const userName = computed(() => authStore.user?.name || "User");
+const userEmail = computed(() => authStore.user?.email || "user@example.com");
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-white font-sans text-gray-800">
-    <!-- SIDEBAR -->
-    <aside class="w-72 bg-gray-50 border-r border-gray-200 flex flex-col p-6">
-      <div class="flex items-center justify-between mb-8">
-        <h1 class="text-2xl font-bold tracking-tight">Menu</h1>
-        <button class="text-gray-400 hover:text-gray-600">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
-        </button>
-      </div>
+  <div
+    class="flex h-screen bg-white font-sans text-gray-800 overflow-hidden relative"
+  >
+    <!-- MOBILE OVERLAY -->
+    <div
+      v-if="isSidebarOpen"
+      @click="isSidebarOpen = false"
+      class="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 lg:hidden"
+    ></div>
 
-      <!-- Search Bar -->
-      <div class="relative mb-8">
-        <span
-          class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-400"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-        </span>
-        <input
-          type="text"
-          placeholder="Search"
-          class="w-full bg-white border border-gray-200 rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-400 transition-all"
-        />
-      </div>
-
-      <!-- Navigation Sections -->
-      <div class="space-y-8 overflow-y-auto flex-grow">
-        <!-- TASKS -->
-        <div>
-          <h2
-            class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4"
-          >
-            Tasks
-          </h2>
-          <ul class="space-y-1">
-            <li
-              class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M13 5l7 7-7 7M5 5l7 7-7 7"
-                  />
-                </svg>
-                <span class="text-sm font-medium">Upcoming</span>
-              </div>
-              <span
-                class="bg-gray-200 text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded"
-                >12</span
-              >
-            </li>
-            <li
-              class="flex items-center justify-between p-2 rounded-lg bg-gray-200 cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 text-gray-600"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 6h16M4 12h16M4 18h7"
-                  />
-                </svg>
-                <span class="text-sm font-bold">Today</span>
-              </div>
-              <span
-                class="bg-white text-gray-600 text-[10px] font-bold px-2 py-0.5 rounded"
-                >5</span
-              >
-            </li>
-            <li
-              class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer text-gray-500"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <span class="text-sm font-medium">Calendar</span>
-            </li>
-            <li
-              class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer text-gray-500"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
-              <span class="text-sm font-medium">Sticky Wall</span>
-            </li>
-          </ul>
-        </div>
-
-        <!-- LISTS -->
-        <div>
-          <h2
-            class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4"
-          >
-            Lists
-          </h2>
-          <ul class="space-y-1">
-            <li
-              class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded-sm bg-red-400"></div>
-                <span class="text-sm font-medium">Personal</span>
-              </div>
-              <span class="text-gray-400 text-xs font-bold">3</span>
-            </li>
-            <li
-              class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded-sm bg-cyan-400"></div>
-                <span class="text-sm font-medium">Work</span>
-              </div>
-              <span class="text-gray-400 text-xs font-bold">6</span>
-            </li>
-            <li
-              class="flex items-center justify-between p-2 rounded-lg hover:bg-gray-100 cursor-pointer"
-            >
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded-sm bg-yellow-400"></div>
-                <span class="text-sm font-medium">List 1</span>
-              </div>
-              <span class="text-gray-400 text-xs font-bold">3</span>
-            </li>
-            <li
-              class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer text-gray-400"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              <span class="text-sm font-medium">Add New List</span>
-            </li>
-          </ul>
-        </div>
-
-        <!-- TAGS -->
-        <div>
-          <h2
-            class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4"
-          >
-            Tags
-          </h2>
-          <div class="flex flex-wrap gap-2">
-            <span
-              class="bg-cyan-100 text-cyan-700 px-3 py-1 rounded-md text-xs font-bold cursor-pointer hover:bg-cyan-200 transition-colors"
-              >Tag 1</span
-            >
-            <span
-              class="bg-pink-100 text-pink-700 px-3 py-1 rounded-md text-xs font-bold cursor-pointer hover:bg-pink-200 transition-colors"
-              >Tag 2</span
-            >
-            <span
-              class="bg-gray-100 text-gray-500 px-3 py-1 rounded-md text-xs font-bold cursor-pointer hover:bg-gray-200 transition-colors"
-              >+ Add Tag</span
-            >
-          </div>
-        </div>
-      </div>
-
-      <!-- FOOTER -->
-      <div class="mt-auto pt-6 border-t border-gray-200 space-y-4">
-        <div
-          class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer text-gray-600"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-            />
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-            />
-          </svg>
-          <span class="text-sm font-medium">Settings</span>
-        </div>
-        <div
-          @click="handleLogout"
-          class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer text-gray-600"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-            />
-          </svg>
-          <span class="text-sm font-medium">Sign out</span>
-        </div>
-      </div>
-    </aside>
-
-    <!-- MAIN CONTENT -->
-    <main class="flex-grow p-12 bg-white overflow-y-auto">
-      <div class="max-w-4xl mx-auto">
-        <header class="flex items-center gap-6 mb-12">
-          <h2 class="text-6xl font-bold tracking-tight">Today</h2>
+    <!-- LEFT SIDEBAR -->
+    <aside
+      class="fixed inset-y-0 left-0 w-64 bg-gray-50 border-r border-gray-200 flex flex-col z-50 transform transition-transform duration-300 lg:relative lg:translate-x-0 flex-shrink-0"
+      :class="isSidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    >
+      <div class="p-6">
+        <div class="flex items-center gap-3 mb-8">
           <div
-            class="flex items-center justify-center border-2 border-gray-100 rounded-2xl w-20 h-20 text-4xl font-bold text-gray-800"
-          >
-            5
-          </div>
-        </header>
-
-        <!-- Add Task Input -->
-        <div class="relative group mb-8">
-          <div
-            class="absolute inset-y-0 left-0 pl-4 flex items-center text-gray-400"
+            class="w-8 h-8 bg-black rounded-lg flex items-center justify-center shadow-md"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              class="h-6 w-6"
+              class="h-5 w-5 text-white"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -366,61 +157,36 @@ const handleLogout = () => {
                 stroke-linecap="round"
                 stroke-linejoin="round"
                 stroke-width="2"
-                d="M12 4v16m8-8H4"
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2"
               />
             </svg>
           </div>
-          <input
-            type="text"
-            placeholder="Add New Task"
-            class="w-full bg-white border border-gray-100 rounded-xl py-4 pl-12 pr-4 text-lg focus:outline-none focus:border-gray-200 focus:shadow-sm transition-all"
-          />
+          <h1 class="text-sm font-black tracking-tighter text-black uppercase">
+            TaskFlow
+          </h1>
         </div>
 
-        <!-- Task List -->
-        <div class="space-y-1">
-          <div
-            v-for="task in tasks"
-            :key="task.id"
-            class="group flex items-center justify-between py-4 border-b border-gray-50 hover:bg-gray-50 transition-colors px-4 -mx-4 rounded-xl cursor-pointer"
-          >
-            <div class="flex flex-col gap-1 w-full">
-              <div class="flex items-center gap-4">
-                <input
-                  type="checkbox"
-                  class="w-5 h-5 rounded border-gray-300 text-yellow-400 focus:ring-yellow-400"
-                />
-                <span class="text-lg font-medium text-gray-700">{{
-                  task.title
-                }}</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-5 w-5 ml-auto text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
-
-              <!-- Meta Info Row -->
+        <nav class="space-y-6">
+          <div>
+            <h3
+              class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-2"
+            >
+              Navigation
+            </h3>
+            <div class="space-y-1">
               <div
-                v-if="task.date || task.tags.length > 0 || task.subtasks > 0"
-                class="flex items-center gap-6 ml-9 mt-1"
+                @click="setFilter('all', '')"
+                :class="
+                  activeFilter.type === 'all'
+                    ? 'bg-white border-gray-200 text-black shadow-sm'
+                    : 'text-gray-400 hover:text-black'
+                "
+                class="flex items-center justify-between p-2.5 rounded-xl border border-transparent cursor-pointer transition-all text-sm font-bold"
               >
-                <div
-                  v-if="task.date"
-                  class="flex items-center gap-1.5 text-gray-500 text-xs font-bold"
-                >
+                <div class="flex items-center gap-3">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    class="h-4 w-4"
+                    class="h-5 w-5"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -429,52 +195,481 @@ const handleLogout = () => {
                       stroke-linecap="round"
                       stroke-linejoin="round"
                       stroke-width="2"
-                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      d="M4 6h16M4 12h16M4 18h7"
                     />
                   </svg>
-                  {{ task.date }}
+                  <span>All Tasks</span>
                 </div>
-                <div
-                  v-if="task.subtasks > 0"
-                  class="flex items-center gap-1.5 text-gray-500 text-xs font-bold px-2 py-0.5 bg-gray-100 rounded"
+              </div>
+              <div
+                @click="setFilter('status', 'completed')"
+                :class="
+                  activeFilter.value === 'completed'
+                    ? 'bg-white border-gray-200 text-black shadow-sm'
+                    : 'text-gray-400 hover:text-black'
+                "
+                class="flex items-center gap-3 p-2.5 rounded-xl border border-transparent cursor-pointer transition-all text-sm font-bold"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  <span class="text-gray-700">{{ task.subtasks }}</span>
-                  Subtasks
-                </div>
-                <div
-                  v-for="tag in task.tags"
-                  :key="tag"
-                  class="flex items-center gap-1.5 text-gray-700 text-xs font-bold"
-                >
-                  <div
-                    :class="{
-                      'bg-red-400': tag === 'Personal',
-                      'bg-yellow-400': tag === 'List 1',
-                    }"
-                    class="w-3 h-3 rounded-sm"
-                  ></div>
-                  {{ tag }}
-                </div>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span>Completed</span>
               </div>
             </div>
           </div>
+
+          <div>
+            <h3
+              class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-2"
+            >
+              Priority
+            </h3>
+            <div class="space-y-1">
+              <div
+                @click="setFilter('priority', 'high')"
+                :class="
+                  activeFilter.value === 'high'
+                    ? 'bg-white border-gray-200 text-black shadow-sm'
+                    : 'text-gray-400 hover:text-black'
+                "
+                class="flex items-center gap-3 p-2.5 rounded-xl border border-transparent cursor-pointer transition-all text-sm font-bold"
+              >
+                <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                <span>High Priority</span>
+              </div>
+              <div
+                @click="setFilter('priority', 'medium')"
+                :class="
+                  activeFilter.value === 'medium'
+                    ? 'bg-white border-gray-200 text-black shadow-sm'
+                    : 'text-gray-400 hover:text-black'
+                "
+                class="flex items-center gap-3 p-2.5 rounded-xl border border-transparent cursor-pointer transition-all text-sm font-bold"
+              >
+                <div class="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
+                <span>Medium Priority</span>
+              </div>
+              <div
+                @click="setFilter('priority', 'low')"
+                :class="
+                  activeFilter.value === 'low'
+                    ? 'bg-white border-gray-200 text-black shadow-sm'
+                    : 'text-gray-400 hover:text-black'
+                "
+                class="flex items-center gap-3 p-2.5 rounded-xl border border-transparent cursor-pointer transition-all text-sm font-bold"
+              >
+                <div class="w-2.5 h-2.5 rounded-full bg-gray-300"></div>
+                <span>Low Priority</span>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      <div class="mt-auto p-4 bg-white border-t border-gray-200">
+        <div
+          class="flex items-center gap-3 mb-4 p-2 bg-gray-50 rounded-2xl border border-gray-100"
+        >
+          <div
+            class="w-10 h-10 rounded-xl bg-black flex items-center justify-center text-white font-black text-sm shadow-sm"
+          >
+            {{ userName.charAt(0).toUpperCase() }}
+          </div>
+          <div class="flex-grow min-w-0">
+            <p class="text-xs font-black text-black truncate">{{ userName }}</p>
+            <p class="text-[10px] text-gray-400 truncate">{{ userEmail }}</p>
+          </div>
+        </div>
+        <button
+          @click="handleLogout"
+          class="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-50 hover:bg-red-50 hover:text-red-600 rounded-xl text-[10px] font-black text-gray-500 transition-all uppercase tracking-widest border border-gray-100"
+        >
+          Logout
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="flex flex-grow overflow-hidden">
+      <!-- TASK LIST -->
+      <main
+        @click="selectedTask = null"
+        class="flex-grow overflow-y-auto bg-white transition-all duration-300 relative"
+      >
+        <!-- CLICKABLE OVERLAY WHEN DETAIL OPEN (Mobile/Desktop) -->
+        <div
+          v-if="selectedTask"
+          class="absolute inset-0 z-10 lg:hidden"
+          @click.stop="selectedTask = null"
+        ></div>
+
+        <div class="max-w-3xl mx-auto px-6 py-8 relative z-0" @click.stop>
+          <div class="flex items-center justify-between mb-8 lg:hidden">
+            <button
+              @click="isSidebarOpen = true"
+              class="p-2 -ml-2 text-gray-400 hover:text-black"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+            </button>
+            <h1 class="text-sm font-black tracking-tighter uppercase">
+              TaskFlow
+            </h1>
+            <div class="w-10"></div>
+          </div>
+
+          <header
+            class="mb-8 border-b border-gray-100 pb-6 flex items-baseline justify-between"
+          >
+            <div>
+              <h2
+                class="text-3xl font-black text-black tracking-tighter capitalize"
+              >
+                {{ activeFilter.value || "All Tasks" }}
+              </h2>
+              <p class="text-xs text-gray-400 font-medium mt-1">
+                Found {{ taskStore.tasks.length }} items
+              </p>
+            </div>
+          </header>
+
+          <!-- Simplified Add Task Input -->
+          <div
+            class="bg-gray-50 p-1.5 rounded-2xl border border-gray-200 mb-8 flex items-center gap-2 focus-within:border-black focus-within:bg-white transition-all shadow-sm"
+          >
+            <div class="flex-grow flex items-center gap-2 pl-3">
+              <input
+                v-model="newTaskTitle"
+                @keyup.enter="handleAddTask"
+                type="text"
+                placeholder="Add a new task title..."
+                class="w-full py-3 text-sm bg-transparent focus:outline-none placeholder-gray-300 font-medium"
+              />
+            </div>
+            <button
+              @click="handleAddTask"
+              class="p-2.5 bg-black rounded-xl text-white hover:bg-gray-800 transition-all shadow-lg"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="3"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Task List -->
+          <div class="space-y-2">
+            <div v-if="taskStore.loading" class="flex justify-center py-12">
+              <div
+                class="w-6 h-6 border-3 border-gray-100 border-t-black rounded-full animate-spin"
+              ></div>
+            </div>
+
+            <div
+              v-else
+              v-for="task in taskStore.tasks"
+              :key="task.id"
+              @click="selectedTask = task"
+              :class="
+                selectedTask?.id === task.id
+                  ? 'border-black bg-gray-50'
+                  : 'border-gray-100 bg-white hover:border-gray-300'
+              "
+              class="group p-4 rounded-xl border transition-all flex items-center justify-between cursor-pointer"
+            >
+              <div class="flex items-center gap-4 flex-grow min-w-0">
+                <div
+                  @click.stop="handleToggle(task)"
+                  class="flex-shrink-0 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all"
+                  :class="
+                    task.status === 'completed'
+                      ? 'bg-black border-black'
+                      : 'border-gray-200 group-hover:border-black'
+                  "
+                >
+                  <svg
+                    v-if="task.status === 'completed'"
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-3 w-3 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="3"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </div>
+
+                <div class="flex flex-col min-w-0 justify-center">
+                  <span
+                    :class="{
+                      'line-through text-gray-300 font-medium':
+                        task.status === 'completed',
+                      'text-black font-bold': task.status !== 'completed',
+                    }"
+                    class="text-sm lg:text-base transition-all truncate leading-none"
+                    >{{ task.title }}</span
+                  >
+                  <div
+                    v-if="task.priority || task.due_date"
+                    class="flex items-center gap-2 mt-1"
+                  >
+                    <span
+                      v-if="task.priority"
+                      :class="getPriorityClass(task.priority)"
+                      class="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md"
+                      >{{ task.priority }}</span
+                    >
+                    <span
+                      v-if="task.due_date"
+                      class="text-[10px] text-gray-400 font-medium"
+                    >
+                      {{ new Date(task.due_date).toLocaleDateString() }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                @click.stop="confirmDelete(task.id)"
+                class="p-1.5 text-gray-200 hover:text-black opacity-0 group-hover:opacity-100 transition-all"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="!taskStore.loading && taskStore.tasks.length === 0"
+            class="text-center py-20 border-2 border-dashed border-gray-50 rounded-2xl"
+          >
+            <p
+              class="text-gray-300 font-black text-sm uppercase tracking-tighter"
+            >
+              No tasks found.
+            </p>
+          </div>
+        </div>
+      </main>
+
+      <!-- RIGHT DETAIL PANE -->
+      <aside
+        class="fixed inset-y-0 right-0 w-full sm:w-80 bg-gray-50 border-l border-gray-200 flex flex-col z-[55] transform transition-transform duration-300 lg:relative lg:translate-x-0 lg:fixed-none flex-shrink-0 shadow-2xl lg:shadow-none"
+        :class="selectedTask ? 'translate-x-0' : 'translate-x-full lg:hidden'"
+      >
+        <div
+          class="p-5 border-b border-gray-200 flex items-center justify-between bg-white"
+        >
+          <h3
+            class="text-[10px] font-black uppercase tracking-widest text-black"
+          >
+            Task Details
+          </h3>
+          <button
+            @click="selectedTask = null"
+            class="text-gray-400 hover:text-black p-1"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div class="flex-grow overflow-y-auto p-5 space-y-6">
+          <div>
+            <label
+              class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1"
+              >Title</label
+            >
+            <input
+              v-model="editForm.title"
+              type="text"
+              class="w-full bg-transparent border-none p-0 text-lg font-black text-black focus:ring-0 placeholder-gray-200"
+            />
+          </div>
+
+          <div>
+            <label
+              class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1"
+              >Description</label
+            >
+            <textarea
+              v-model="editForm.description"
+              rows="5"
+              placeholder="Add notes here..."
+              class="w-full bg-white border border-gray-200 rounded-xl p-3 text-xs font-medium focus:outline-none focus:border-black transition-all resize-none shadow-sm"
+            ></textarea>
+          </div>
+
+          <div class="space-y-4">
+            <div>
+              <label
+                class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1"
+                >Priority</label
+              >
+              <select
+                v-model="editForm.priority"
+                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:ring-0 shadow-sm cursor-pointer"
+              >
+                <option value="">None</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1"
+                >Due Date</label
+              >
+              <input
+                v-model="editForm.due_date"
+                type="date"
+                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:ring-0 shadow-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="p-5 border-t border-gray-200 bg-white">
+          <button
+            @click="handleUpdateTaskDetail"
+            class="w-full py-3 bg-black text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gray-200 hover:bg-gray-800 transition-all"
+          >
+            Save Changes
+          </button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- CUSTOM DELETE MODAL -->
+    <div
+      v-if="showDeleteModal"
+      @click="showDeleteModal = false"
+      class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200"
+    >
+      <div
+        @click.stop
+        class="bg-white rounded-3xl shadow-2xl max-w-[320px] w-full p-8 text-center animate-in zoom-in-95 duration-200"
+      >
+        <div
+          class="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center text-black mx-auto mb-6 border border-gray-100"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-8 w-8"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+            />
+          </svg>
+        </div>
+        <h3 class="text-xl font-black text-black mb-1">Delete Task?</h3>
+        <p class="text-xs text-gray-500 mb-8 font-medium">
+          This cannot be undone.
+        </p>
+        <div class="flex gap-2">
+          <button
+            @click="showDeleteModal = false"
+            class="flex-grow py-3 bg-gray-100 rounded-xl font-bold text-[10px] text-gray-600 hover:bg-gray-200 transition-all uppercase tracking-widest"
+          >
+            Cancel
+          </button>
+          <button
+            @click="handleDelete"
+            class="flex-grow py-3 bg-black rounded-xl font-bold text-[10px] text-white hover:bg-gray-800 transition-all uppercase tracking-widest"
+          >
+            Delete
+          </button>
         </div>
       </div>
-    </main>
+    </div>
   </div>
 </template>
 
 <style>
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 
 body {
   font-family: "Inter", sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
-/* Custom Checkbox Style */
-input[type="checkbox"]:checked {
-  background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #f1f1f1;
+  border-radius: 10px;
 }
 </style>

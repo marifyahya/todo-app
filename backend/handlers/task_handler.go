@@ -14,7 +14,7 @@ import (
 type CreateTaskRequest struct {
 	Title       string     `json:"title" binding:"required"`
 	Description string     `json:"description"`
-	Priority    string     `json:"priority"`
+	Priority    *string    `json:"priority"`
 	DueDate     *time.Time `json:"due_date"`
 }
 
@@ -22,7 +22,7 @@ type UpdateTaskRequest struct {
 	Title       string     `json:"title"`
 	Description string     `json:"description"`
 	Status      string     `json:"status"`
-	Priority    string     `json:"priority"`
+	Priority    *string    `json:"priority"`
 	DueDate     *time.Time `json:"due_date"`
 }
 
@@ -40,6 +40,12 @@ func GetTasks(c *gin.Context) {
 	status := c.Query("status")
 	if status != "" {
 		query = query.Where("status = ?", status)
+	}
+
+	// Filter by priority
+	priority := c.Query("priority")
+	if priority != "" {
+		query = query.Where("priority = ?", priority)
 	}
 
 	// Sorting
@@ -133,7 +139,7 @@ func UpdateTask(c *gin.Context) {
 	if req.Status != "" {
 		updates["status"] = req.Status
 	}
-	if req.Priority != "" {
+	if req.Priority != nil {
 		updates["priority"] = req.Priority
 	}
 	if req.DueDate != nil {
@@ -146,4 +152,33 @@ func UpdateTask(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Task updated successfully", task)
+}
+
+func DeleteTask(c *gin.Context) {
+	userID, exists := c.Get("user_id")
+	if !exists {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	id := c.Param("id")
+	var task models.Task
+
+	// Find task and check ownership
+	if err := database.DB.First(&task, id).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "Task not found")
+		return
+	}
+
+	if task.UserID != userID.(uint) {
+		utils.ErrorResponse(c, http.StatusForbidden, "You do not have permission to delete this task")
+		return
+	}
+
+	if err := database.DB.Delete(&task).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete task")
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, "Task deleted successfully", nil)
 }

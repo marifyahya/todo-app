@@ -9,7 +9,7 @@ type Task struct {
 	Title       string     `gorm:"not null" json:"title"`
 	Description string     `json:"description"`
 	Status      string     `gorm:"default:pending" json:"status"`
-	Priority    string     `gorm:"default:medium" json:"priority"`
+	Priority    *string    `json:"priority"`
 	DueDate     *time.Time `json:"due_date"`
 	UserID      uint       `json:"user_id"`
 	User        User       `gorm:"foreignKey:UserID" json:"-"`

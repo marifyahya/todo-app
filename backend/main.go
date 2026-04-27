@@ -66,6 +66,7 @@ func main() {
 			tasks.GET("", handlers.GetTasks)
 			tasks.POST("", handlers.CreateTask)
 			tasks.PUT("/:id", handlers.UpdateTask)
+			tasks.DELETE("/:id", handlers.DeleteTask)
 		}
 	}
 
