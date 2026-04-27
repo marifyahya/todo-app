@@ -1,5 +1,10 @@
 <script setup>
 import { ref } from "vue";
+import { useRouter } from "vue-router";
+import { useAuthStore } from "../stores/auth";
+
+const router = useRouter();
+const authStore = useAuthStore();
 
 const tasks = ref([
   {
@@ -43,6 +48,11 @@ const tasks = ref([
     subtasks: 0,
   },
 ]);
+
+const handleLogout = () => {
+  authStore.logout();
+  router.push("/login");
+};
 </script>
 
 <template>
@@ -306,6 +316,7 @@ const tasks = ref([
           <span class="text-sm font-medium">Settings</span>
         </div>
         <div
+          @click="handleLogout"
           class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 cursor-pointer text-gray-600"
         >
           <svg

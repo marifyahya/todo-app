@@ -16,7 +16,7 @@ const error = ref("");
 const loading = ref(false);
 
 const handleLogin = async () => {
-  error.ref = "";
+  error.value = "";
   loading.value = true;
   try {
     const response = await api.post("/auth/login", form.value);
