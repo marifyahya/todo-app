@@ -14,8 +14,10 @@ export const useTaskStore = defineStore("task", {
       try {
         const response = await api.get("/tasks", { params });
         this.tasks = response.data.data;
+        return response.data;
       } catch (err) {
         this.error = err.response?.data?.message || "Failed to fetch tasks";
+        throw err;
       } finally {
         this.loading = false;
       }
@@ -23,10 +25,10 @@ export const useTaskStore = defineStore("task", {
     async createTask(title) {
       try {
         const response = await api.post("/tasks", { title });
-        this.tasks.unshift(response.data.data); // Add to top of list
-        return response.data.data;
+        this.tasks.unshift(response.data.data);
+        return response.data;
       } catch (err) {
-        throw err.response?.data?.message || "Failed to create task";
+        throw err;
       }
     },
     async updateTask(id, updates) {
@@ -36,16 +38,18 @@ export const useTaskStore = defineStore("task", {
         if (index !== -1) {
           this.tasks[index] = response.data.data;
         }
+        return response.data;
       } catch (err) {
-        throw err.response?.data?.message || "Failed to update task";
+        throw err;
       }
     },
     async deleteTask(id) {
       try {
-        await api.delete(`/tasks/${id}`);
+        const response = await api.delete(`/tasks/${id}`);
         this.tasks = this.tasks.filter((t) => t.id !== id);
+        return response.data;
       } catch (err) {
-        throw err.response?.data?.message || "Failed to delete task";
+        throw err;
       }
     },
     async toggleStatus(task) {

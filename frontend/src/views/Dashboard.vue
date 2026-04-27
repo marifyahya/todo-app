@@ -20,10 +20,24 @@ const editForm = ref({
 const showDeleteModal = ref(false);
 const taskToDelete = ref(null);
 const isSidebarOpen = ref(false);
-const activeFilter = ref({ type: "all", value: "" });
+const activeFilter = ref({ type: "status", value: "pending" });
+
+// Toast Notification State
+const toast = ref({
+  show: false,
+  message: "",
+  type: "success",
+});
+
+const showToast = (message, type = "success") => {
+  toast.value = { show: true, message, type };
+  setTimeout(() => {
+    toast.value.show = false;
+  }, 3000);
+};
 
 onMounted(() => {
-  taskStore.fetchTasks();
+  taskStore.fetchTasks({ status: "pending" });
 });
 
 // Watch for selectedTask changes to populate editForm
@@ -48,40 +62,47 @@ const handleLogout = () => {
 const handleAddTask = async () => {
   if (!newTaskTitle.value.trim()) return;
   try {
-    await taskStore.createTask(newTaskTitle.value);
+    const res = await taskStore.createTask(newTaskTitle.value);
     newTaskTitle.value = "";
+    showToast(res.message || "Task created successfully!");
   } catch (err) {
-    console.error(err);
+    showToast(err.response?.data?.message || "Failed to create task", "error");
   }
 };
 
 const handleUpdateTaskDetail = async () => {
   if (!selectedTask.value) return;
   try {
-    await taskStore.updateTask(selectedTask.value.id, {
+    const res = await taskStore.updateTask(selectedTask.value.id, {
       ...editForm.value,
       priority: editForm.value.priority || null,
       due_date: editForm.value.due_date
         ? new Date(editForm.value.due_date)
         : null,
     });
+    showToast(res.message || "Task updated successfully!");
   } catch (err) {
-    console.error(err);
+    showToast(err.response?.data?.message || "Failed to update task", "error");
   }
 };
 
 const handleToggle = async (task) => {
   try {
-    await taskStore.toggleStatus(task);
+    const res = await taskStore.toggleStatus(task);
+    showToast(res.message || "Status updated!");
   } catch (err) {
-    console.error(err);
+    showToast("Failed to update status", "error");
   }
 };
 
 const setFilter = (type, value) => {
   activeFilter.value = { type, value };
   const params = {};
-  if (type !== "all") {
+  if (type === "all") {
+    // If 'all' is clicked, we actually want only pending as per user request
+    activeFilter.value = { type: "status", value: "pending" };
+    params.status = "pending";
+  } else if (type !== "all") {
     params[type] = value;
   }
   taskStore.fetchTasks(params);
@@ -96,13 +117,14 @@ const confirmDelete = (id) => {
 const handleDelete = async () => {
   if (taskToDelete.value) {
     try {
-      await taskStore.deleteTask(taskToDelete.value);
+      const res = await taskStore.deleteTask(taskToDelete.value);
       if (selectedTask.value?.id === taskToDelete.value)
         selectedTask.value = null;
       showDeleteModal.value = false;
       taskToDelete.value = null;
+      showToast(res.message || "Task deleted");
     } catch (err) {
-      console.error(err);
+      showToast("Failed to delete task", "error");
     }
   }
 };
@@ -129,6 +151,49 @@ const userEmail = computed(() => authStore.user?.email || "user@example.com");
   <div
     class="flex h-screen bg-white font-sans text-gray-800 overflow-hidden relative"
   >
+    <transition name="toast">
+      <div
+        v-if="toast.show"
+        :class="[
+          toast.type === 'success'
+            ? 'bg-emerald-50 border-emerald-100 text-emerald-900 shadow-emerald-100'
+            : 'bg-red-50 border-red-100 text-red-900 shadow-red-100',
+        ]"
+        class="fixed top-8 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-3 px-6 py-3.5 rounded-2xl shadow-2xl border min-w-[300px] transition-all duration-300"
+      >
+        <div
+          :class="toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'"
+          class="w-5 h-5 rounded-full flex items-center justify-center text-white"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-3 w-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              v-if="toast.type === 'success'"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="4"
+              d="M5 13l4 4L19 7"
+            />
+            <path
+              v-else
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="4"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </div>
+        <span class="text-xs font-black uppercase tracking-widest">{{
+          toast.message
+        }}</span>
+      </div>
+    </transition>
+
     <!-- MOBILE OVERLAY -->
     <div
       v-if="isSidebarOpen"
@@ -175,9 +240,9 @@ const userEmail = computed(() => authStore.user?.email || "user@example.com");
             </h3>
             <div class="space-y-1">
               <div
-                @click="setFilter('all', '')"
+                @click="setFilter('status', 'pending')"
                 :class="
-                  activeFilter.type === 'all'
+                  activeFilter.value === 'pending'
                     ? 'bg-white border-gray-200 text-black shadow-sm'
                     : 'text-gray-400 hover:text-black'
                 "
@@ -562,32 +627,64 @@ const userEmail = computed(() => authStore.user?.email || "user@example.com");
             ></textarea>
           </div>
 
-          <div class="space-y-4">
+          <div class="space-y-5">
             <div>
               <label
-                class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1"
+                class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1"
                 >Priority</label
               >
-              <select
-                v-model="editForm.priority"
-                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:ring-0 shadow-sm cursor-pointer"
-              >
-                <option value="">None</option>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+              <div class="grid grid-cols-4 gap-2">
+                <button
+                  v-for="p in ['', 'low', 'medium', 'high']"
+                  :key="p"
+                  @click="editForm.priority = p"
+                  :class="[
+                    editForm.priority === p
+                      ? p === 'high'
+                        ? 'bg-red-500 text-white border-red-500 shadow-lg shadow-red-100'
+                        : p === 'medium'
+                          ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-100'
+                          : p === 'low'
+                            ? 'bg-gray-800 text-white border-gray-800 shadow-lg shadow-gray-100'
+                            : 'bg-black text-white border-black shadow-lg shadow-gray-100'
+                      : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300',
+                  ]"
+                  class="py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  {{ p || "None" }}
+                </button>
+              </div>
             </div>
             <div>
               <label
-                class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1"
+                class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1"
                 >Due Date</label
               >
-              <input
-                v-model="editForm.due_date"
-                type="date"
-                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:ring-0 shadow-sm"
-              />
+              <div class="relative group">
+                <div
+                  class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
+                  </svg>
+                </div>
+                <input
+                  v-model="editForm.due_date"
+                  type="date"
+                  class="w-full bg-white border border-gray-100 rounded-2xl pl-11 pr-4 py-3.5 text-xs font-bold text-black focus:border-black focus:ring-0 transition-all shadow-sm cursor-pointer"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -671,5 +768,49 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #f1f1f1;
   border-radius: 10px;
+}
+
+/* Toast Animation */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+
+.animate-in {
+  animation-duration: 200ms;
+  animation-fill-mode: both;
+}
+.fade-in {
+  animation-name: fade-in;
+}
+.zoom-in-95 {
+  animation-name: zoom-in-95;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes zoom-in-95 {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 </style>
